@@ -25,6 +25,60 @@
 
 ---
 
+## 🏛️ Architecture & How It Works
+
+```mermaid
+flowchart TD
+    A["RoomDatabase / SupportSQLiteDatabase"] -->|registerDatabase| B["ComposeRoomInspector"]
+    B --> C["SqliteDatabaseDriver"]
+    
+    subgraph Core Engine
+        C -->|Query sqlite_master| D["Discover Tables"]
+        C -->|PRAGMA table_info| E["Parse Column Types & PKs"]
+        C -->|SELECT ... LIMIT OFFSET| F["Paginated Row Fetcher"]
+        C -->|executeSql| G["Raw SQL Execution Engine"]
+    end
+    
+    D & E & F & G --> H["RoomInspectorRepository (StateFlow)"]
+    
+    subgraph Jetpack Compose UI
+        H --> I["ComposeRoomInspectorOverlay"]
+        I --> J["TableBrowserView (2D Data Grid)"]
+        I --> K["SqlConsoleView (Interactive SQL)"]
+        I --> L["Export Engine (CSV / JSON to Clipboard)"]
+    end
+```
+
+### 1. Zero-Friction Database Binding
+Register your Room Database or SQLite instance during app initialization:
+```kotlin
+ComposeRoomInspector.registerRoomDatabase("AppDatabase", roomDatabase)
+```
+* Extracts the underlying `SupportSQLiteDatabase` via `roomDatabase.openHelper.writableDatabase`.
+* Supports registering multiple databases simultaneously (e.g. User DB, Cache DB, Analytics DB).
+
+### 2. Automated Schema & Table Discovery
+`SqliteDatabaseDriver` inspects SQLite system catalogs on-device:
+* Queries `sqlite_master` to discover all user-created tables while omitting internal system tables (`sqlite_%`, `room_master_table`, `android_metadata`).
+* Runs `PRAGMA table_info(tableName)` to extract column names, data types (`INTEGER`, `TEXT`, `REAL`), nullability, and primary key flags (`🔑`).
+
+### 3. Paginated 2D Data Grid & Multi-Column Search
+* Queries rows lazily with pagination (`SELECT * FROM table LIMIT 25 OFFSET 0`) to support large databases containing 100,000+ records without memory overhead.
+* The search bar generates dynamic multi-column `LIKE` filters across all fields in real-time.
+* `TableBrowserView` renders a high-performance 2D scrollable data grid with sticky column headers.
+
+### 4. Interactive SQL Runner with Duration Badging
+* Execute raw queries (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `PRAGMA`) directly in the **SQL Console** tab.
+* Times execution in milliseconds (`⚡ 12 ms`) and displays affected row counts.
+* DML/DDL statements (`INSERT`, `UPDATE`, `DELETE`) automatically trigger reactive UI refreshes in the **Table Browser** tab.
+
+### 5. In-Memory Export Engine
+* **Export as CSV**: Generates standard RFC-4180 comma-separated values.
+* **Export as JSON**: Generates formatted JSON arrays of objects.
+* 1-tap copy directly into Android's system clipboard for sharing in Slack, emails, or bug reports.
+
+---
+
 ## 📦 Installation
 
 Add JitPack to your `settings.gradle.kts`:
@@ -71,6 +125,26 @@ fun AppContent() {
         ComposeRoomInspectorOverlay()
     }
 }
+```
+
+---
+
+## 🛠️ Advanced Usage & Programmatic Control
+
+```kotlin
+// Register multiple databases
+ComposeRoomInspector.registerDatabase("UsersDb", usersSqliteDb)
+ComposeRoomInspector.registerDatabase("CacheDb", cacheSqliteDb)
+
+// Programmatically execute SQL or refresh
+RoomInspectorRepository.selectDatabase("UsersDb")
+RoomInspectorRepository.selectTable("users")
+RoomInspectorRepository.executeSql("UPDATE users SET status = 'ACTIVE' WHERE role = 'ADMIN'")
+RoomInspectorRepository.refreshCurrentTable()
+
+// Export table data programmatically
+val csvString = RoomInspectorRepository.exportCurrentTableAsCsv()
+val jsonString = RoomInspectorRepository.exportCurrentTableAsJson()
 ```
 
 ---
