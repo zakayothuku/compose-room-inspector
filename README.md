@@ -83,11 +83,11 @@ ComposeRoomInspector.registerRoomDatabase("AppDatabase", roomDatabase)
 
 ## 📦 Installation
 
-Add JitPack to your `settings.gradle.kts`:
+Add Maven Central to your `settings.gradle.kts`:
 
 ```kotlin
 repositories {
-    maven { url = uri("https://jitpack.io") }
+    mavenCentral()
 }
 ```
 
@@ -95,7 +95,11 @@ Add the dependency to your app's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    debugImplementation("com.github.zakayothuku:compose-room-inspector:v1.0.0")
+    // Debug builds: in-app SQLite & Room inspector overlay
+    debugImplementation("io.github.zakayothuku:compose-room-inspector:1.0.0")
+    
+    // Release builds: zero-overhead no-op artifact
+    releaseImplementation("io.github.zakayothuku:compose-room-inspector-noop:1.0.0")
 }
 ```
 
